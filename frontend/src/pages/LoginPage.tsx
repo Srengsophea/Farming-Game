@@ -18,7 +18,7 @@ export const LoginPage: React.FC = () => {
 
     try {
       const response = await authApi.login(email, password);
-      const { token, user } = response.data;
+      const { token } = response.data;
 
       setToken(token);
 

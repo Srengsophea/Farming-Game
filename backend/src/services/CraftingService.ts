@@ -53,16 +53,21 @@ export class CraftingService {
       }
 
       const existing = await client.query(
-        'SELECT quantity FROM inventory WHERE player_id = $1 AND item_id = $2',
+        'SELECT id, quantity FROM inventory WHERE player_id = $1 AND item_id = $2',
         [playerId, recipe.output]
       );
 
-      const newQuantity = (existing.rows[0]?.quantity || 0) + recipe.outputQuantity;
-      await client.query(
-        `INSERT INTO inventory (player_id, item_id, quantity, rarity) VALUES ($1, $2, $3, 'common')
-         ON CONFLICT (player_id, item_id) DO UPDATE SET quantity = $3`,
-        [playerId, recipe.output, newQuantity]
-      );
+      if (existing.rows[0]) {
+        await client.query(
+          'UPDATE inventory SET quantity = quantity + $1, updated_at = CURRENT_TIMESTAMP WHERE player_id = $2 AND item_id = $3',
+          [recipe.outputQuantity, playerId, recipe.output]
+        );
+      } else {
+        await client.query(
+          'INSERT INTO inventory (id, player_id, item_id, quantity, rarity) VALUES ($1, $2, $3, $4, $5)',
+          [uuidv4(), playerId, recipe.output, recipe.outputQuantity, 'common']
+        );
+      }
 
       await client.query(
         'UPDATE players SET farm_xp = farm_xp + $1 WHERE id = $2',

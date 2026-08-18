@@ -20,15 +20,20 @@ export class PlayerService {
         [farmId, playerId, 'My Farm', 20, 20, 1]
       );
 
+      const tileValues: any[] = [];
+      const valuePlaceholders: string[] = [];
+      let pIdx = 1;
       for (let x = 0; x < 20; x++) {
         for (let y = 0; y < 20; y++) {
           const tileType = Math.random() > 0.7 ? 'grass' : 'soil';
-          await client.query(
-            'INSERT INTO farm_tiles (id, farm_id, grid_x, grid_y, tile_type, tilled) VALUES ($1, $2, $3, $4, $5, $6)',
-            [uuidv4(), farmId, x, y, tileType, false]
-          );
+          valuePlaceholders.push(`($${pIdx++}, $${pIdx++}, $${pIdx++}, $${pIdx++}, $${pIdx++}, false)`);
+          tileValues.push(uuidv4(), farmId, x, y, tileType);
         }
       }
+      await client.query(
+        `INSERT INTO farm_tiles (id, farm_id, grid_x, grid_y, tile_type, tilled) VALUES ${valuePlaceholders.join(', ')}`,
+        tileValues
+      );
 
       const farmhouseId = uuidv4();
       await client.query(
@@ -53,7 +58,14 @@ export class PlayerService {
        FROM players p WHERE p.id = $1`,
       [playerId]
     );
-    return result.rows[0];
+    if (!result.rows[0]) return null;
+    const row = result.rows[0];
+    return {
+      ...row,
+      farmLevel: row.farm_level,
+      playerXp: row.player_xp,
+      farmXp: row.farm_xp
+    };
   }
 
   async getPlayerStats(playerId: string) {
@@ -61,7 +73,14 @@ export class PlayerService {
       `SELECT level, farm_level, player_xp, farm_xp, coins, gems, energy FROM players WHERE id = $1`,
       [playerId]
     );
-    return result.rows[0];
+    if (!result.rows[0]) return {};
+    const row = result.rows[0];
+    return {
+      ...row,
+      farmLevel: row.farm_level,
+      playerXp: row.player_xp,
+      farmXp: row.farm_xp
+    };
   }
 
   async updatePlayerStats(playerId: string, stats: Partial<{ coins: number; gems: number; energy: number; playerXp: number; farmXp: number; level: number; farmLevel: number }>) {
@@ -143,7 +162,7 @@ export class PlayerService {
       await client.query('BEGIN');
 
       const current = await client.query(
-        `SELECT quantity FROM inventory WHERE player_id = $1 AND item_id = $2`,
+        `SELECT id, quantity FROM inventory WHERE player_id = $1 AND item_id = $2`,
         [playerId, itemId]
       );
 
@@ -154,11 +173,15 @@ export class PlayerService {
           `DELETE FROM inventory WHERE player_id = $1 AND item_id = $2`,
           [playerId, itemId]
         );
+      } else if (current.rows[0]) {
+        await client.query(
+          `UPDATE inventory SET quantity = $1, updated_at = CURRENT_TIMESTAMP WHERE player_id = $2 AND item_id = $3`,
+          [newQuantity, playerId, itemId]
+        );
       } else {
         await client.query(
-          `INSERT INTO inventory (player_id, item_id, quantity, rarity) VALUES ($1, $2, $3, 'common')
-           ON CONFLICT (player_id, item_id) DO UPDATE SET quantity = $3, updated_at = CURRENT_TIMESTAMP`,
-          [playerId, itemId, newQuantity]
+          `INSERT INTO inventory (id, player_id, item_id, quantity, rarity) VALUES ($1, $2, $3, $4, $5)`,
+          [uuidv4(), playerId, itemId, newQuantity, 'common']
         );
       }
 

@@ -92,7 +92,7 @@ export class SocialService {
       [playerId]
     );
 
-    const friendIds = result.rows.map(r => r.friend_id);
+    const friendIds = result.rows.map((r: any) => r.friend_id);
 
     if (friendIds.length === 0) {
       return [];

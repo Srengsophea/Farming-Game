@@ -19,7 +19,7 @@ export const RegisterPage: React.FC = () => {
 
     try {
       const response = await authApi.register(email, password, username);
-      const { token, user } = response.data;
+      const { token } = response.data;
 
       setToken(token);
 
@@ -29,7 +29,8 @@ export const RegisterPage: React.FC = () => {
 
       navigate('/game');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Registration failed');
+      console.error('Registration error:', err);
+      setError(err.response?.data?.error || err.message || 'Registration failed');
     } finally {
       setIsLoading(false);
     }

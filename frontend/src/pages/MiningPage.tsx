@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import axios from 'axios';
-
-const API_BASE = 'http://localhost:3001/api';
+import React, { useEffect, useState } from 'react';
+import { farmingApi, authApi } from '../services/api';
+import { useGameStore } from '../stores/gameStore';
+import { Navbar } from '../components/Navbar';
 
 interface Ore {
   id: string;
@@ -12,106 +12,128 @@ interface Ore {
   minLevel: number;
 }
 
+const ORE_ICONS: Record<string, string> = {
+  stone: '🪨',
+  coal: '⚫',
+  copper: '🟤',
+  iron: '⛏️',
+  silver: '🥈',
+  gold: '🪙',
+  emerald: '💚',
+  diamond: '💎'
+};
+
 export const MiningPage: React.FC = () => {
   const [ores, setOres] = useState<Ore[]>([]);
   const [minedOre, setMinedOre] = useState<Ore | null>(null);
   const [isMining, setIsMining] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { player, setPlayer } = useGameStore();
+
+  useEffect(() => {
+    loadOres();
+  }, []);
+
+  const loadOres = async () => {
+    try {
+      const res = await farmingApi.getOres();
+      setOres(res.data.ores || []);
+    } catch (err) {
+      console.error('Error loading ores:', err);
+    }
+  };
 
   const handleMine = async () => {
     setIsMining(true);
+    setError(null);
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await axios.post(
-        `${API_BASE}/game/mining/mine`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const response = await farmingApi.mine();
       setMinedOre(response.data.minedOre);
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to mine');
+      const meRes = await authApi.getMe().catch(() => null);
+      if (meRes?.data?.player) {
+        setPlayer(meRes.data.player);
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to mine. Need at least 15 Energy!');
     } finally {
       setIsMining(false);
     }
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-4xl font-bold text-green-700 mb-6">⛏️ Mining</h1>
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      <Navbar />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-lg shadow-lg p-6">
-          <div className="bg-gradient-to-b from-gray-400 to-gray-700 rounded-lg p-12 text-center mb-6">
-            <div className="text-6xl mb-4">⛏️</div>
-            <div className="text-xl font-bold text-white">The Deep Mines</div>
-          </div>
-
-          <button
-            onClick={handleMine}
-            disabled={isMining}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg transition disabled:opacity-50 text-lg"
-          >
-            {isMining ? '⛏️ Mining...' : '⛏️ Strike Rock'}
-          </button>
-
-          {minedOre && (
-            <div className="mt-6 p-4 bg-yellow-50 border-2 border-yellow-400 rounded-lg text-center">
-              <div className="text-2xl mb-2">🎉 You found ore!</div>
-              <div className="text-4xl mb-2">💎</div>
-              <div className="text-2xl font-bold text-orange-600">{minedOre.name}</div>
-              <div className={`text-sm font-semibold mt-2 ${
-                minedOre.rarity === 'epic' ? 'text-purple-600' :
-                minedOre.rarity === 'rare' ? 'text-blue-600' :
-                minedOre.rarity === 'uncommon' ? 'text-green-600' :
-                'text-gray-600'
-              }`}>
-                {minedOre.rarity.toUpperCase()}
-              </div>
-              <div className="mt-3 text-sm">
-                <div>Value: {minedOre.sellPrice} 🪙</div>
-                <div>XP: +{minedOre.xpReward}</div>
-              </div>
-            </div>
-          )}
+      <main className="max-w-5xl w-full mx-auto p-4 sm:p-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-black text-gray-800 flex items-center gap-2">
+            <span>⛏️</span> The Deep Cave Mines
+          </h1>
         </div>
 
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-2xl font-bold mb-4">Ore Guide</h2>
-          <div className="space-y-3 text-sm max-h-96 overflow-y-auto">
-            <div className="border-b pb-2">
-              <div className="font-bold">Level 1+</div>
-              <div className="text-gray-600 text-xs">Stone, Coal</div>
-            </div>
-            <div className="border-b pb-2">
-              <div className="font-bold">Level 5+</div>
-              <div className="text-gray-600 text-xs">Copper Ore</div>
-            </div>
-            <div className="border-b pb-2">
-              <div className="font-bold">Level 10+</div>
-              <div className="text-gray-600 text-xs">Iron Ore</div>
-            </div>
-            <div className="border-b pb-2">
-              <div className="font-bold">Level 15+</div>
-              <div className="text-gray-600 text-xs">Silver Ore</div>
-            </div>
-            <div className="border-b pb-2">
-              <div className="font-bold">Level 20+</div>
-              <div className="text-gray-600 text-xs">Gold Ore</div>
-            </div>
-            <div className="border-b pb-2">
-              <div className="font-bold">Level 25+</div>
-              <div className="text-gray-600 text-xs">Emerald</div>
-            </div>
-            <div className="pb-2">
-              <div className="font-bold">Level 30+</div>
-              <div className="text-gray-600 text-xs">Diamond</div>
-            </div>
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm font-semibold">
+            {error}
           </div>
-          <div className="mt-4 p-3 bg-blue-50 rounded">
-            <div className="text-xs font-semibold mb-1">💡 Tip</div>
-            <div className="text-xs text-gray-700">Mining requires 15 energy. Higher level = better ores!</div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Mining Area */}
+          <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-6">
+            <div className="bg-gradient-to-b from-slate-700 via-gray-800 to-zinc-900 rounded-2xl p-10 text-center text-white shadow-md relative overflow-hidden">
+              <div className="text-7xl mb-3 animate-pulse">⛏️</div>
+              <h2 className="text-2xl font-black mb-1">Deep Cavern Shaft</h2>
+              <p className="text-slate-300 text-xs font-semibold">
+                Cost: 15 Energy (⚡) per strike • Unlock rare gems as you level up!
+              </p>
+            </div>
+
+            <button
+              onClick={handleMine}
+              disabled={isMining || (player?.energy ?? 100) < 15}
+              className="w-full bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-extrabold py-4 px-6 rounded-2xl transition shadow-md text-base flex items-center justify-center gap-2"
+            >
+              <span>{isMining ? '⏳' : '⛏️'}</span>
+              <span>{isMining ? 'Excavating rocks...' : 'Strike Rock (15 Energy)'}</span>
+            </button>
+
+            {minedOre && (
+              <div className="p-6 bg-amber-50/80 border-2 border-amber-300 rounded-2xl text-center space-y-2 animate-fade-in shadow-sm">
+                <div className="text-xs font-black uppercase text-amber-800 tracking-wider">🎉 Vein Discovered!</div>
+                <div className="text-5xl">{ORE_ICONS[minedOre.id] || '🪨'}</div>
+                <div className="text-xl font-black text-gray-900">{minedOre.name}</div>
+                <div className="flex justify-center gap-4 text-xs font-bold pt-1">
+                  <span className="text-amber-700">Value: 🪙 {minedOre.sellPrice}</span>
+                  <span className="text-emerald-700">Reward: ⭐ +{minedOre.xpReward} XP</span>
+                  <span className="capitalize text-blue-700">Rarity: {minedOre.rarity}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Available Ores */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
+            <h2 className="text-base font-bold text-gray-800">Unlocked Veins ({ores.length})</h2>
+            <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+              {ores.map((o) => (
+                <div key={o.id} className="border border-gray-100 bg-slate-50 p-3 rounded-xl flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-2xl">{ORE_ICONS[o.id] || '🪨'}</span>
+                    <div>
+                      <div className="font-bold text-gray-800">{o.name}</div>
+                      <div className="text-[10px] text-gray-500 capitalize">{o.rarity} • Lv.{o.minLevel}+</div>
+                    </div>
+                  </div>
+                  <div className="text-right font-semibold">
+                    <div className="text-amber-600">🪙 {o.sellPrice}</div>
+                    <div className="text-[10px] text-gray-400">+{o.xpReward} XP</div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 };

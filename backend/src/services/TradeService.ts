@@ -79,16 +79,21 @@ export class TradeService {
       );
 
       const existing = await client.query(
-        'SELECT quantity FROM inventory WHERE player_id = $1 AND item_id = $2',
+        'SELECT id, quantity FROM inventory WHERE player_id = $1 AND item_id = $2',
         [buyerId, listingData.item_id]
       );
 
-      const newQuantity = (existing.rows[0]?.quantity || 0) + quantity;
-      await client.query(
-        `INSERT INTO inventory (player_id, item_id, quantity, rarity) VALUES ($1, $2, $3, 'common')
-         ON CONFLICT (player_id, item_id) DO UPDATE SET quantity = $3`,
-        [buyerId, listingData.item_id, newQuantity]
-      );
+      if (existing.rows[0]) {
+        await client.query(
+          'UPDATE inventory SET quantity = quantity + $1, updated_at = CURRENT_TIMESTAMP WHERE player_id = $2 AND item_id = $3',
+          [quantity, buyerId, listingData.item_id]
+        );
+      } else {
+        await client.query(
+          'INSERT INTO inventory (id, player_id, item_id, quantity, rarity) VALUES ($1, $2, $3, $4, $5)',
+          [uuidv4(), buyerId, listingData.item_id, quantity, 'common']
+        );
+      }
 
       if (listingData.quantity === quantity) {
         await client.query(
@@ -130,16 +135,21 @@ export class TradeService {
       const listingData = listing.rows[0];
 
       const existing = await client.query(
-        'SELECT quantity FROM inventory WHERE player_id = $1 AND item_id = $2',
+        'SELECT id, quantity FROM inventory WHERE player_id = $1 AND item_id = $2',
         [playerId, listingData.item_id]
       );
 
-      const newQuantity = (existing.rows[0]?.quantity || 0) + listingData.quantity;
-      await client.query(
-        `INSERT INTO inventory (player_id, item_id, quantity, rarity) VALUES ($1, $2, $3, 'common')
-         ON CONFLICT (player_id, item_id) DO UPDATE SET quantity = $3`,
-        [playerId, listingData.item_id, newQuantity]
-      );
+      if (existing.rows[0]) {
+        await client.query(
+          'UPDATE inventory SET quantity = quantity + $1, updated_at = CURRENT_TIMESTAMP WHERE player_id = $2 AND item_id = $3',
+          [listingData.quantity, playerId, listingData.item_id]
+        );
+      } else {
+        await client.query(
+          'INSERT INTO inventory (id, player_id, item_id, quantity, rarity) VALUES ($1, $2, $3, $4, $5)',
+          [uuidv4(), playerId, listingData.item_id, listingData.quantity, 'common']
+        );
+      }
 
       await client.query(
         'UPDATE marketplace_listings SET status = $1 WHERE id = $2',
@@ -269,16 +279,21 @@ export class TradeService {
         );
 
         const existing = await client.query(
-          'SELECT quantity FROM inventory WHERE player_id = $1 AND item_id = $2',
+          'SELECT id, quantity FROM inventory WHERE player_id = $1 AND item_id = $2',
           [tradeData.recipient_id, itemId]
         );
 
-        const newQuantity = (existing.rows[0]?.quantity || 0) + 1;
-        await client.query(
-          `INSERT INTO inventory (player_id, item_id, quantity, rarity) VALUES ($1, $2, $3, 'common')
-           ON CONFLICT (player_id, item_id) DO UPDATE SET quantity = $3`,
-          [tradeData.recipient_id, itemId, newQuantity]
-        );
+        if (existing.rows[0]) {
+          await client.query(
+            'UPDATE inventory SET quantity = quantity + 1, updated_at = CURRENT_TIMESTAMP WHERE player_id = $1 AND item_id = $2',
+            [tradeData.recipient_id, itemId]
+          );
+        } else {
+          await client.query(
+            'INSERT INTO inventory (id, player_id, item_id, quantity, rarity) VALUES ($1, $2, $3, $4, $5)',
+            [uuidv4(), tradeData.recipient_id, itemId, 1, 'common']
+          );
+        }
       }
 
       for (const itemId of recipientItems) {
@@ -288,16 +303,21 @@ export class TradeService {
         );
 
         const existing = await client.query(
-          'SELECT quantity FROM inventory WHERE player_id = $1 AND item_id = $2',
+          'SELECT id, quantity FROM inventory WHERE player_id = $1 AND item_id = $2',
           [tradeData.initiator_id, itemId]
         );
 
-        const newQuantity = (existing.rows[0]?.quantity || 0) + 1;
-        await client.query(
-          `INSERT INTO inventory (player_id, item_id, quantity, rarity) VALUES ($1, $2, $3, 'common')
-           ON CONFLICT (player_id, item_id) DO UPDATE SET quantity = $3`,
-          [tradeData.initiator_id, itemId, newQuantity]
-        );
+        if (existing.rows[0]) {
+          await client.query(
+            'UPDATE inventory SET quantity = quantity + 1, updated_at = CURRENT_TIMESTAMP WHERE player_id = $1 AND item_id = $2',
+            [tradeData.initiator_id, itemId]
+          );
+        } else {
+          await client.query(
+            'INSERT INTO inventory (id, player_id, item_id, quantity, rarity) VALUES ($1, $2, $3, $4, $5)',
+            [uuidv4(), tradeData.initiator_id, itemId, 1, 'common']
+          );
+        }
       }
 
       await client.query(

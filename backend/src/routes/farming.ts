@@ -8,6 +8,9 @@ const router = express.Router();
 router.get('/farm', authMiddleware, async (req: Request, res: Response) => {
   try {
     const farm = await PlayerService.getFarm(req.playerId!);
+    if (!farm) {
+      return res.status(404).json({ error: 'Farm not found' });
+    }
     const tiles = await PlayerService.getFarmTiles(farm.id);
     const animals = await PlayerService.getAnimals(farm.id);
     const buildings = await PlayerService.getBuildings(farm.id);

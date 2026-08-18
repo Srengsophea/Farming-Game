@@ -1,11 +1,10 @@
-FROM node:18-alpine
+FROM node:20-slim
 
 WORKDIR /app
 
 COPY package*.json ./
 COPY backend/package*.json ./backend/
 COPY shared/package*.json ./shared/
-COPY tsconfig.json ./
 
 RUN npm install
 

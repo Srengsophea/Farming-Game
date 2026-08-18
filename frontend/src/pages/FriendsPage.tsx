@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { socialApi } from '../services/api';
-import { useGameStore } from '../stores/gameStore';
+import { Navbar } from '../components/Navbar';
 
 interface Friend {
   id: string;
@@ -23,7 +23,7 @@ export const FriendsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Friend[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const { player } = useGameStore();
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
   useEffect(() => {
     loadFriends();
@@ -35,8 +35,25 @@ export const FriendsPage: React.FC = () => {
         socialApi.getFriends(),
         socialApi.getPendingRequests()
       ]);
-      setFriends(friendsRes.data.friends);
-      setPendingRequests(requestsRes.data.requests);
+      const rawFriends = friendsRes.data.friends || [];
+      const normalizedFriends: Friend[] = rawFriends.map((f: any) => ({
+        id: f.id,
+        username: f.username,
+        level: f.level,
+        farmLevel: f.farm_level || f.farmLevel || 1
+      }));
+
+      const rawRequests = requestsRes.data.requests || [];
+      const normalizedRequests: PendingRequest[] = rawRequests.map((r: any) => ({
+        id: r.id,
+        playerId: r.player_id || r.playerId,
+        username: r.username,
+        level: r.level,
+        requestedAt: r.requested_at || r.requestedAt
+      }));
+
+      setFriends(normalizedFriends);
+      setPendingRequests(normalizedRequests);
     } catch (error) {
       console.error('Error loading friends:', error);
     } finally {
@@ -50,7 +67,14 @@ export const FriendsPage: React.FC = () => {
 
     try {
       const response = await socialApi.searchPlayers(searchQuery);
-      setSearchResults(response.data.players);
+      const raw = response.data.players || [];
+      const normalized: Friend[] = raw.map((p: any) => ({
+        id: p.id,
+        username: p.username,
+        level: p.level,
+        farmLevel: p.farm_level || p.farmLevel || 1
+      }));
+      setSearchResults(normalized);
     } catch (error) {
       console.error('Error searching players:', error);
     }
@@ -59,143 +83,155 @@ export const FriendsPage: React.FC = () => {
   const handleSendFriendRequest = async (targetPlayerId: string) => {
     try {
       await socialApi.sendFriendRequest(targetPlayerId);
-      alert('Friend request sent!');
-      setSearchQuery('');
-      setSearchResults([]);
+      setStatusMsg('Friend request sent! 🤝');
+      setTimeout(() => setStatusMsg(null), 3000);
+      setSearchResults((prev) => prev.filter((p) => p.id !== targetPlayerId));
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to send friend request');
+      setStatusMsg(error.response?.data?.error || 'Failed to send friend request');
+      setTimeout(() => setStatusMsg(null), 3000);
     }
   };
 
-  const handleAcceptRequest = async (friendshipId: string) => {
+  const handleAcceptRequest = async (requestId: string) => {
     try {
-      await socialApi.acceptFriendRequest(friendshipId);
+      await socialApi.acceptFriendRequest(requestId);
+      setStatusMsg('Accepted friend request! 🎉');
+      setTimeout(() => setStatusMsg(null), 3000);
       await loadFriends();
-    } catch (error) {
-      console.error('Error accepting friend request:', error);
-    }
-  };
-
-  const handleDeclineRequest = async (friendshipId: string) => {
-    try {
-      await socialApi.declineFriendRequest(friendshipId);
-      await loadFriends();
-    } catch (error) {
-      console.error('Error declining friend request:', error);
+    } catch (error: any) {
+      setStatusMsg(error.response?.data?.error || 'Failed to accept request');
+      setTimeout(() => setStatusMsg(null), 3000);
     }
   };
 
   if (isLoading) {
-    return <div className="p-6">Loading friends...</div>;
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col">
+        <Navbar />
+        <div className="p-8 text-center text-gray-500 font-semibold">Loading Friends...</div>
+      </div>
+    );
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <h1 className="text-4xl font-bold text-green-700 mb-6">👥 Friends</h1>
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      <Navbar />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <div className="bg-white rounded-lg shadow-lg p-4 mb-6">
-            <h2 className="text-2xl font-bold mb-4">Search Players</h2>
-            <form onSubmit={handleSearch} className="flex gap-2 mb-4">
+      <main className="max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-black text-gray-800 flex items-center gap-2">
+            <span>👥</span> Friends & Neighbors
+          </h1>
+        </div>
+
+        {statusMsg && (
+          <div className="bg-emerald-800 text-white px-5 py-3 rounded-xl shadow-md text-sm font-semibold animate-fade-in">
+            {statusMsg}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Friends list */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Pending Requests */}
+            {pendingRequests.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 space-y-3">
+                <h2 className="text-sm font-bold text-amber-900 uppercase tracking-wider">
+                  Pending Friend Requests ({pendingRequests.length})
+                </h2>
+                <div className="space-y-2">
+                  {pendingRequests.map((req) => (
+                    <div
+                      key={req.id}
+                      className="bg-white p-3.5 rounded-xl border border-amber-200 flex justify-between items-center text-xs"
+                    >
+                      <div>
+                        <div className="font-bold text-gray-800">{req.username}</div>
+                        <div className="text-gray-500 text-[11px]">Level {req.level}</div>
+                      </div>
+                      <button
+                        onClick={() => handleAcceptRequest(req.id)}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg font-bold shadow-sm"
+                      >
+                        Accept
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Friends list */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
+              <h2 className="text-lg font-bold text-gray-800">My Friends ({friends.length})</h2>
+              {friends.length === 0 ? (
+                <div className="text-center py-10 text-gray-400 bg-gray-50 rounded-2xl border border-dashed border-gray-200 text-xs font-semibold">
+                  No friends added yet. Search for farmers to connect!
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {friends.map((friend) => (
+                    <div
+                      key={friend.id}
+                      className="border border-gray-200 rounded-2xl p-4 flex items-center justify-between bg-slate-50/50"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-emerald-100 text-emerald-800 rounded-xl flex items-center justify-center font-black text-sm">
+                          {friend.username[0]?.toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="font-bold text-gray-800 text-sm">{friend.username}</div>
+                          <div className="text-xs text-gray-500">Lv.{friend.level} • Farm Lv.{friend.farmLevel}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Search Players */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4 h-fit">
+            <h2 className="text-lg font-bold text-gray-800">Find Farmers</h2>
+            <form onSubmit={handleSearch} className="flex gap-2">
               <input
                 type="text"
+                placeholder="Search username..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search for players..."
-                className="flex-1 px-4 py-2 border rounded-lg"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-xl text-xs font-semibold outline-none bg-slate-50"
               />
-              <button type="submit" className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg">
+              <button
+                type="submit"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow"
+              >
                 Search
               </button>
             </form>
 
-            {searchResults.length > 0 && (
-              <div className="space-y-3">
-                {searchResults.map((player) => (
-                  <div key={player.id} className="border rounded-lg p-4 flex justify-between items-center">
-                    <div>
-                      <div className="font-bold">{player.username}</div>
-                      <div className="text-sm text-gray-600">Level {player.level} • Farm Level {player.farmLevel}</div>
-                    </div>
-                    <button
-                      onClick={() => handleSendFriendRequest(player.id)}
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
-                    >
-                      Add Friend
-                    </button>
+            <div className="space-y-2">
+              {searchResults.map((user) => (
+                <div
+                  key={user.id}
+                  className="border border-gray-200 p-3 rounded-xl flex justify-between items-center text-xs bg-slate-50"
+                >
+                  <div>
+                    <div className="font-bold text-gray-800">{user.username}</div>
+                    <div className="text-[11px] text-gray-500">Level {user.level}</div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {pendingRequests.length > 0 && (
-            <div className="bg-yellow-50 rounded-lg shadow-lg p-4 mb-6">
-              <h2 className="text-2xl font-bold mb-4">Pending Requests</h2>
-              <div className="space-y-3">
-                {pendingRequests.map((request) => (
-                  <div key={request.id} className="border rounded-lg p-4 flex justify-between items-center">
-                    <div>
-                      <div className="font-bold">{request.username}</div>
-                      <div className="text-sm text-gray-600">Level {request.level}</div>
-                    </div>
-                    <div className="space-x-2">
-                      <button
-                        onClick={() => handleAcceptRequest(request.id)}
-                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded"
-                      >
-                        Accept
-                      </button>
-                      <button
-                        onClick={() => handleDeclineRequest(request.id)}
-                        className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded"
-                      >
-                        Decline
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="bg-white rounded-lg shadow-lg p-4">
-            <h2 className="text-2xl font-bold mb-4">Your Friends ({friends.length})</h2>
-            {friends.length === 0 ? (
-              <p className="text-gray-600">No friends yet. Add some!</p>
-            ) : (
-              <div className="space-y-3">
-                {friends.map((friend) => (
-                  <div key={friend.id} className="border rounded-lg p-4 flex justify-between items-center">
-                    <div>
-                      <div className="font-bold">{friend.username}</div>
-                      <div className="text-sm text-gray-600">Level {friend.level} • Farm Level {friend.farmLevel}</div>
-                    </div>
-                    <button className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded">
-                      Visit Farm
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-lg p-4 h-fit">
-          <h3 className="text-xl font-bold mb-4">Stats</h3>
-          <div className="space-y-3 text-sm">
-            <div>
-              <span className="text-gray-600">Friends:</span>
-              <span className="font-bold float-right">{friends.length}</span>
-            </div>
-            <div>
-              <span className="text-gray-600">Pending:</span>
-              <span className="font-bold float-right">{pendingRequests.length}</span>
+                  <button
+                    onClick={() => handleSendFriendRequest(user.id)}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-lg font-bold text-[11px]"
+                  >
+                    + Add
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 };

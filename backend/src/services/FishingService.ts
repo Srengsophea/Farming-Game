@@ -23,7 +23,7 @@ export class FishingService {
       );
 
       if (!player.rows[0] || player.rows[0].energy < 10) {
-        throw new Error('Not enough energy');
+        throw new Error('Not enough energy (need 10)');
       }
 
       await client.query(
@@ -48,16 +48,21 @@ export class FishingService {
       }
 
       const existing = await client.query(
-        'SELECT quantity FROM inventory WHERE player_id = $1 AND item_id = $2',
+        'SELECT id, quantity FROM inventory WHERE player_id = $1 AND item_id = $2',
         [playerId, caughtFish.id]
       );
 
-      const newQuantity = (existing.rows[0]?.quantity || 0) + 1;
-      await client.query(
-        `INSERT INTO inventory (player_id, item_id, quantity, rarity) VALUES ($1, $2, $3, $4)
-         ON CONFLICT (player_id, item_id) DO UPDATE SET quantity = $3`,
-        [playerId, caughtFish.id, newQuantity, caughtFish.rarity]
-      );
+      if (existing.rows[0]) {
+        await client.query(
+          'UPDATE inventory SET quantity = quantity + 1, updated_at = CURRENT_TIMESTAMP WHERE player_id = $1 AND item_id = $2',
+          [playerId, caughtFish.id]
+        );
+      } else {
+        await client.query(
+          'INSERT INTO inventory (id, player_id, item_id, quantity, rarity) VALUES ($1, $2, $3, $4, $5)',
+          [uuidv4(), playerId, caughtFish.id, 1, caughtFish.rarity]
+        );
+      }
 
       await client.query(
         'UPDATE players SET farm_xp = farm_xp + $1 WHERE id = $2',

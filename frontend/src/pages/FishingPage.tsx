@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import axios from 'axios';
-
-const API_BASE = 'http://localhost:3001/api';
+import React, { useEffect, useState } from 'react';
+import { farmingApi, authApi } from '../services/api';
+import { useGameStore } from '../stores/gameStore';
+import { Navbar } from '../components/Navbar';
 
 interface Fish {
   id: string;
@@ -12,95 +12,128 @@ interface Fish {
   catchChance: number;
 }
 
+const FISH_ICONS: Record<string, string> = {
+  carp: '🐟',
+  catfish: '🐡',
+  trout: '🐠',
+  salmon: '🐟',
+  bass: '🐟',
+  koi: '🐠',
+  golden_fish: '✨🐟'
+};
+
 export const FishingPage: React.FC = () => {
-  const [fish, setFish] = useState<Fish[]>([]);
+  const [availableFish, setAvailableFish] = useState<Fish[]>([]);
   const [caughtFish, setCaughtFish] = useState<Fish | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [isFishing, setIsFishing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { player, setPlayer } = useGameStore();
+
+  useEffect(() => {
+    loadFishList();
+  }, []);
+
+  const loadFishList = async () => {
+    try {
+      const res = await farmingApi.getFish();
+      setAvailableFish(res.data.fish || []);
+    } catch (err) {
+      console.error('Error loading fish list:', err);
+    }
+  };
 
   const handleFish = async () => {
     setIsFishing(true);
+    setError(null);
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await axios.post(
-        `${API_BASE}/game/fishing/fish`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const response = await farmingApi.fish();
       setCaughtFish(response.data.caughtFish);
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to fish');
+      // Refresh player energy / stats
+      const meRes = await authApi.getMe().catch(() => null);
+      if (meRes?.data?.player) {
+        setPlayer(meRes.data.player);
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to fish. Ensure you have at least 10 Energy!');
     } finally {
       setIsFishing(false);
     }
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-4xl font-bold text-green-700 mb-6">🎣 Fishing</h1>
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      <Navbar />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-lg shadow-lg p-6">
-          <div className="bg-gradient-to-b from-sky-200 to-blue-400 rounded-lg p-12 text-center mb-6">
-            <div className="text-6xl mb-4">🌊</div>
-            <div className="text-xl font-bold text-blue-900">The Great Lake</div>
-          </div>
-
-          <button
-            onClick={handleFish}
-            disabled={isFishing}
-            className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg transition disabled:opacity-50 text-lg"
-          >
-            {isFishing ? '🎣 Fishing...' : '🎣 Cast Line'}
-          </button>
-
-          {caughtFish && (
-            <div className="mt-6 p-4 bg-yellow-50 border-2 border-yellow-400 rounded-lg text-center">
-              <div className="text-2xl mb-2">🎉 You caught something!</div>
-              <div className="text-4xl mb-2">🐟</div>
-              <div className="text-2xl font-bold text-orange-600">{caughtFish.name}</div>
-              <div className={`text-sm font-semibold mt-2 ${
-                caughtFish.rarity === 'epic' ? 'text-purple-600' :
-                caughtFish.rarity === 'rare' ? 'text-blue-600' :
-                caughtFish.rarity === 'uncommon' ? 'text-green-600' :
-                'text-gray-600'
-              }`}>
-                {caughtFish.rarity.toUpperCase()}
-              </div>
-              <div className="mt-3 text-sm">
-                <div>Value: {caughtFish.sellPrice} 🪙</div>
-                <div>XP: +{caughtFish.xpReward}</div>
-              </div>
-            </div>
-          )}
+      <main className="max-w-5xl w-full mx-auto p-4 sm:p-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-black text-gray-800 flex items-center gap-2">
+            <span>🎣</span> The Great Lake Fishing
+          </h1>
         </div>
 
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-2xl font-bold mb-4">Fish Guide</h2>
-          <div className="space-y-3 text-sm">
-            <div className="border-b pb-2">
-              <div className="font-bold">Common</div>
-              <div className="text-gray-600">Carp, Catfish</div>
-            </div>
-            <div className="border-b pb-2">
-              <div className="font-bold">Uncommon</div>
-              <div className="text-gray-600">Trout, Salmon</div>
-            </div>
-            <div className="border-b pb-2">
-              <div className="font-bold">Rare</div>
-              <div className="text-gray-600">Bass, Koi</div>
-            </div>
-            <div className="pb-2">
-              <div className="font-bold">Epic</div>
-              <div className="text-gray-600">Golden Fish</div>
-            </div>
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm font-semibold">
+            {error}
           </div>
-          <div className="mt-4 p-3 bg-blue-50 rounded">
-            <div className="text-xs font-semibold mb-1">💡 Tip</div>
-            <div className="text-xs text-gray-700">Fishing requires 10 energy per cast. Rarer fish are harder to catch!</div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Fishing Zone */}
+          <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-6">
+            <div className="bg-gradient-to-b from-sky-300 via-blue-500 to-indigo-600 rounded-2xl p-10 text-center text-white shadow-md relative overflow-hidden">
+              <div className="text-7xl mb-3 animate-pulse">🌊</div>
+              <h2 className="text-2xl font-black mb-1">Mirror Lake</h2>
+              <p className="text-sky-100 text-xs font-semibold">
+                Cost: 10 Energy (⚡) per cast • Catch chances vary by rarity
+              </p>
+            </div>
+
+            <button
+              onClick={handleFish}
+              disabled={isFishing || (player?.energy ?? 100) < 10}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-extrabold py-4 px-6 rounded-2xl transition shadow-md text-base flex items-center justify-center gap-2"
+            >
+              <span>{isFishing ? '⏳' : '🎣'}</span>
+              <span>{isFishing ? 'Reeling in fish...' : 'Cast Line (10 Energy)'}</span>
+            </button>
+
+            {caughtFish && (
+              <div className="p-6 bg-amber-50/80 border-2 border-amber-300 rounded-2xl text-center space-y-2 animate-fade-in shadow-sm">
+                <div className="text-xs font-black uppercase text-amber-800 tracking-wider">🎉 Successful Catch!</div>
+                <div className="text-5xl">{FISH_ICONS[caughtFish.id] || '🐟'}</div>
+                <div className="text-xl font-black text-gray-900">{caughtFish.name}</div>
+                <div className="flex justify-center gap-4 text-xs font-bold pt-1">
+                  <span className="text-amber-700">Value: 🪙 {caughtFish.sellPrice}</span>
+                  <span className="text-emerald-700">Reward: ⭐ +{caughtFish.xpReward} XP</span>
+                  <span className="capitalize text-blue-700">Rarity: {caughtFish.rarity}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Fish Species List */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
+            <h2 className="text-base font-bold text-gray-800">Lake Species ({availableFish.length})</h2>
+            <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+              {availableFish.map((f) => (
+                <div key={f.id} className="border border-gray-100 bg-slate-50 p-3 rounded-xl flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-2xl">{FISH_ICONS[f.id] || '🐟'}</span>
+                    <div>
+                      <div className="font-bold text-gray-800">{f.name}</div>
+                      <div className="text-[10px] text-gray-500 capitalize">{f.rarity}</div>
+                    </div>
+                  </div>
+                  <div className="text-right font-semibold">
+                    <div className="text-amber-600">🪙 {f.sellPrice}</div>
+                    <div className="text-[10px] text-gray-400">+{f.xpReward} XP</div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 };

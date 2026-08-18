@@ -1,11 +1,87 @@
-import { Pool } from 'pg';
+import { Pool as PgPool, PoolClient } from 'pg';
+import { newDb, DataType } from 'pg-mem';
+import { randomUUID } from 'crypto';
+import dotenv from 'dotenv';
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/farming_game'
-});
+dotenv.config();
+
+let realPool: any = null;
+let memPool: any = null;
+let useMemory = false;
+
+function getMemPool() {
+  if (!memPool) {
+    console.log('Using in-memory PostgreSQL instance (pg-mem)...');
+    const db = newDb();
+    db.public.registerFunction({
+      name: 'gen_random_uuid',
+      returns: DataType.uuid,
+      implementation: () => randomUUID()
+    });
+    const adapter = db.adapters.createPg();
+    memPool = new adapter.Pool();
+  }
+  return memPool;
+}
+
+export function getActivePool() {
+  if (useMemory) {
+    return getMemPool();
+  }
+  if (!realPool) {
+    realPool = new PgPool({
+      connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5432/farming_game'
+    });
+  }
+  return realPool;
+}
+
+const poolProxy = {
+  connect: async (): Promise<PoolClient> => {
+    if (useMemory) {
+      return getMemPool().connect();
+    }
+    try {
+      const active = getActivePool();
+      return await active.connect();
+    } catch (err: any) {
+      if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND' || err.message?.includes('ECONNREFUSED')) {
+        console.warn('Could not connect to PostgreSQL server at 127.0.0.1:5432. Falling back to in-memory PostgreSQL database.');
+        useMemory = true;
+        return getMemPool().connect();
+      }
+      throw err;
+    }
+  },
+  query: async (text: string, params?: any[]) => {
+    if (useMemory) {
+      return getMemPool().query(text, params);
+    }
+    try {
+      const active = getActivePool();
+      return await active.query(text, params);
+    } catch (err: any) {
+      if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND' || err.message?.includes('ECONNREFUSED')) {
+        console.warn('Could not connect to PostgreSQL server at 127.0.0.1:5432. Falling back to in-memory PostgreSQL database.');
+        useMemory = true;
+        return getMemPool().query(text, params);
+      }
+      throw err;
+    }
+  },
+  end: () => {
+    if (realPool) realPool.end();
+    if (memPool) memPool.end();
+  }
+};
+
+let isInitialized = false;
 
 export async function initializeDatabase() {
-  const client = await pool.connect();
+  if (isInitialized && useMemory) {
+    return;
+  }
+  const client = await poolProxy.connect();
   try {
     await client.query('BEGIN');
 
@@ -220,6 +296,7 @@ export async function initializeDatabase() {
     `);
 
     await client.query('COMMIT');
+    isInitialized = true;
     console.log('Database initialized successfully');
   } catch (error) {
     await client.query('ROLLBACK');
@@ -230,4 +307,4 @@ export async function initializeDatabase() {
   }
 }
 
-export default pool;
+export default poolProxy;

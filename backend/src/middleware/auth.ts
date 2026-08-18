@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { AuthToken, AuthTokenSchema } from '@farming-game/shared';
+import pool from '../db/index';
 
 declare global {
   namespace Express {
@@ -27,7 +28,7 @@ export function verifyToken(token: string): AuthToken {
   return AuthTokenSchema.parse(decoded);
 }
 
-export function authMiddleware(req: Request, res: Response, next: NextFunction) {
+export async function authMiddleware(req: Request, res: Response, next: NextFunction) {
   const token = req.headers.authorization?.split(' ')[1];
 
   if (!token) {
@@ -36,6 +37,10 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
 
   try {
     const user = verifyToken(token);
+    const result = await pool.query('SELECT id FROM players WHERE id = $1', [user.playerId]);
+    if (!result.rows[0]) {
+      return res.status(401).json({ error: 'Player session expired or not found' });
+    }
     req.user = user;
     req.userId = user.userId;
     req.playerId = user.playerId;
@@ -45,15 +50,18 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
   }
 }
 
-export function optionalAuthMiddleware(req: Request, res: Response, next: NextFunction) {
+export async function optionalAuthMiddleware(req: Request, res: Response, next: NextFunction) {
   const token = req.headers.authorization?.split(' ')[1];
 
   if (token) {
     try {
       const user = verifyToken(token);
-      req.user = user;
-      req.userId = user.userId;
-      req.playerId = user.playerId;
+      const result = await pool.query('SELECT id FROM players WHERE id = $1', [user.playerId]);
+      if (result.rows[0]) {
+        req.user = user;
+        req.userId = user.userId;
+        req.playerId = user.playerId;
+      }
     } catch (error) {
       // Token invalid but optional, continue
     }

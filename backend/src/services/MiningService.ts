@@ -1,4 +1,5 @@
 import pool from '../db/index';
+import { v4 as uuidv4 } from 'uuid';
 
 export class MiningService {
   private readonly ORES: Record<string, { name: string; rarity: string; sellPrice: number; xpReward: number; minLevel: number; dropChance: number }> = {
@@ -61,16 +62,21 @@ export class MiningService {
       }
 
       const existing = await client.query(
-        'SELECT quantity FROM inventory WHERE player_id = $1 AND item_id = $2',
+        'SELECT id, quantity FROM inventory WHERE player_id = $1 AND item_id = $2',
         [playerId, minedOre.id]
       );
 
-      const newQuantity = (existing.rows[0]?.quantity || 0) + 1;
-      await client.query(
-        `INSERT INTO inventory (player_id, item_id, quantity, rarity) VALUES ($1, $2, $3, $4)
-         ON CONFLICT (player_id, item_id) DO UPDATE SET quantity = $3`,
-        [playerId, minedOre.id, newQuantity, minedOre.rarity]
-      );
+      if (existing.rows[0]) {
+        await client.query(
+          'UPDATE inventory SET quantity = quantity + 1, updated_at = CURRENT_TIMESTAMP WHERE player_id = $1 AND item_id = $2',
+          [playerId, minedOre.id]
+        );
+      } else {
+        await client.query(
+          'INSERT INTO inventory (id, player_id, item_id, quantity, rarity) VALUES ($1, $2, $3, $4, $5)',
+          [uuidv4(), playerId, minedOre.id, 1, minedOre.rarity]
+        );
+      }
 
       await client.query(
         'UPDATE players SET farm_xp = farm_xp + $1 WHERE id = $2',

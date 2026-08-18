@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { farmingApi } from '../services/api';
+import { Navbar } from '../components/Navbar';
 
 interface Recipe {
   id: string;
@@ -10,11 +11,18 @@ interface Recipe {
   xpReward: number;
 }
 
+const RECIPE_ICONS: Record<string, string> = {
+  bread: '🍞',
+  cheese: '🧀',
+  cake: '🍰'
+};
+
 export const CraftingPage: React.FC = () => {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [isCrafting, setIsCrafting] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
   useEffect(() => {
     loadRecipes();
@@ -22,8 +30,8 @@ export const CraftingPage: React.FC = () => {
 
   const loadRecipes = async () => {
     try {
-      const response = await farmingApi.getRecipes?.() || { data: { recipes: [] } };
-      setRecipes(response.data.recipes);
+      const response = await farmingApi.getRecipes();
+      setRecipes(response.data.recipes || []);
     } catch (error) {
       console.error('Error loading recipes:', error);
     } finally {
@@ -34,86 +42,110 @@ export const CraftingPage: React.FC = () => {
   const handleCraft = async (recipeId: string) => {
     setIsCrafting(true);
     try {
-      await farmingApi.craftItem?.(recipeId) || Promise.reject('Craft not available');
-      alert('Item crafted!');
+      await farmingApi.craftItem(recipeId);
+      setStatusMsg(`Successfully crafted ${recipeId}! ✨`);
+      setTimeout(() => setStatusMsg(null), 3000);
       setSelectedRecipe(null);
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to craft');
+      setStatusMsg(error.response?.data?.error || 'Not enough ingredients in inventory');
+      setTimeout(() => setStatusMsg(null), 3000);
     } finally {
       setIsCrafting(false);
     }
   };
 
   if (isLoading) {
-    return <div className="p-6">Loading recipes...</div>;
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col">
+        <Navbar />
+        <div className="p-8 text-center text-gray-500 font-semibold">Loading recipes...</div>
+      </div>
+    );
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <h1 className="text-4xl font-bold text-green-700 mb-6">🔨 Crafting</h1>
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      <Navbar />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-lg shadow-lg p-4">
-          <h2 className="text-2xl font-bold mb-4">Available Recipes</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {recipes.map((recipe) => (
-              <button
-                key={recipe.id}
-                onClick={() => setSelectedRecipe(recipe)}
-                className={`border-2 rounded-lg p-4 text-left transition ${
-                  selectedRecipe?.id === recipe.id
-                    ? 'border-green-600 bg-green-50'
-                    : 'border-gray-300 hover:border-green-400'
-                }`}
-              >
-                <div className="font-bold text-lg capitalize">{recipe.output}</div>
-                <div className="text-sm text-gray-600 mb-2">
-                  Time: {(recipe.craftTimeMs / 1000).toFixed(0)}s
-                </div>
-                <div className="text-sm">
-                  <div className="text-gray-700">Ingredients:</div>
-                  {Object.entries(recipe.ingredients).map(([item, qty]) => (
-                    <div key={item} className="text-xs text-gray-600 ml-2">
-                      • {item} ×{qty}
-                    </div>
-                  ))}
-                </div>
-              </button>
-            ))}
-          </div>
+      <main className="max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-black text-gray-800 flex items-center gap-2">
+            <span>🔨</span> Artisan Crafting
+          </h1>
         </div>
 
-        {selectedRecipe && (
-          <div className="bg-white rounded-lg shadow-lg p-4 h-fit">
-            <h3 className="text-2xl font-bold mb-4 capitalize">{selectedRecipe.output}</h3>
-            
-            <div className="mb-4">
-              <h4 className="font-semibold mb-2">Ingredients</h4>
-              <div className="space-y-2">
-                {Object.entries(selectedRecipe.ingredients).map(([item, qty]) => (
-                  <div key={item} className="flex justify-between text-sm">
-                    <span className="capitalize">{item}</span>
-                    <span className="font-bold">×{qty}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="mb-4 p-3 bg-blue-50 rounded">
-              <div className="text-sm text-gray-700 mb-1">Rewards</div>
-              <div className="font-bold">+{selectedRecipe.xpReward} XP</div>
-            </div>
-
-            <button
-              onClick={() => handleCraft(selectedRecipe.id)}
-              disabled={isCrafting}
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition disabled:opacity-50"
-            >
-              {isCrafting ? 'Crafting...' : 'Start Crafting'}
-            </button>
+        {statusMsg && (
+          <div className="bg-emerald-800 text-white px-5 py-3 rounded-xl shadow-md text-sm font-semibold animate-fade-in">
+            {statusMsg}
           </div>
         )}
-      </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
+            <h2 className="text-lg font-bold text-gray-800">Available Recipes</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {recipes.map((recipe) => (
+                <button
+                  key={recipe.id}
+                  onClick={() => setSelectedRecipe(recipe)}
+                  className={`border rounded-2xl p-5 text-left transition-all flex flex-col justify-between ${
+                    selectedRecipe?.id === recipe.id
+                      ? 'border-emerald-600 ring-2 ring-emerald-300 bg-emerald-50/50 shadow-sm'
+                      : 'border-gray-200 hover:border-emerald-300 hover:shadow-md bg-white'
+                  }`}
+                >
+                  <div>
+                    <div className="text-4xl mb-2">{RECIPE_ICONS[recipe.output] || '📦'}</div>
+                    <div className="font-extrabold text-base text-gray-800 capitalize">{recipe.output}</div>
+                    <div className="text-xs text-gray-500 mt-1">Reward: +{recipe.xpReward} Farm XP</div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-gray-100 text-xs font-semibold text-gray-600">
+                    Ingredients: {Object.entries(recipe.ingredients).map(([k, v]) => `${v}x ${k}`).join(', ')}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4 h-fit">
+            <h2 className="text-lg font-bold text-gray-800">Craft Item</h2>
+            {selectedRecipe ? (
+              <div className="space-y-4">
+                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl text-center">
+                  <div className="text-5xl mb-2">{RECIPE_ICONS[selectedRecipe.output] || '📦'}</div>
+                  <div className="font-black text-xl text-emerald-900 capitalize">{selectedRecipe.output}</div>
+                  <div className="text-xs text-emerald-700 font-semibold mt-1">Output: {selectedRecipe.outputQuantity}x item</div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-xs font-bold text-gray-700 uppercase">Required Ingredients:</div>
+                  <div className="space-y-1">
+                    {Object.entries(selectedRecipe.ingredients).map(([item, qty]) => (
+                      <div key={item} className="flex justify-between text-xs bg-slate-50 p-2 rounded-lg font-semibold">
+                        <span className="capitalize">{item}</span>
+                        <span className="text-emerald-700 font-bold">{qty}x</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => handleCraft(selectedRecipe.id)}
+                  disabled={isCrafting}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-3 rounded-xl shadow transition"
+                >
+                  {isCrafting ? 'Crafting in progress...' : `Craft ${selectedRecipe.output}`}
+                </button>
+              </div>
+            ) : (
+              <div className="text-center py-12 text-gray-400 bg-gray-50 rounded-2xl border border-dashed border-gray-200 text-xs font-semibold">
+                Select a recipe from the list to start crafting
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
     </div>
   );
 };

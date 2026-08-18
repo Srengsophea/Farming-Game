@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import { authMiddleware } from '../middleware/auth';
+import pool from '../db/index';
 import CraftingService from '../services/CraftingService';
 import FishingService from '../services/FishingService';
 import MiningService from '../services/MiningService';
@@ -64,10 +65,10 @@ router.post('/mining/mine', authMiddleware, async (req: Request, res: Response) 
 
 router.get('/mining/ores', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const player = await (await require('../db/index').default.query(
+    const player = await pool.query(
       'SELECT level FROM players WHERE id = $1',
       [req.playerId]
-    ));
+    );
 
     const playerLevel = player.rows[0]?.level || 1;
     const ores = MiningService.getOres(playerLevel);

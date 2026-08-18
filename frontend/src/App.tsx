@@ -11,6 +11,7 @@ import { InventoryPage } from './pages/InventoryPage';
 import { CraftingPage } from './pages/CraftingPage';
 import { FishingPage } from './pages/FishingPage';
 import { MiningPage } from './pages/MiningPage';
+import { LeaderboardPage } from './pages/LeaderboardPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token } = useGameStore();
@@ -86,6 +87,14 @@ function App() {
           element={
             <ProtectedRoute>
               <MiningPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/leaderboard"
+          element={
+            <ProtectedRoute>
+              <LeaderboardPage />
             </ProtectedRoute>
           }
         />

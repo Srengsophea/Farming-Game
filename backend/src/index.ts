@@ -1,5 +1,8 @@
 import express from 'express';
 import cors from 'cors';
+import dotenv from 'dotenv';
+
+dotenv.config();
 import { initializeDatabase } from './db/index';
 import { seedDatabase } from './db/seed';
 import authRoutes from './routes/auth';

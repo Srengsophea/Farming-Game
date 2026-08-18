@@ -47,16 +47,18 @@ interface GameStore {
   removeInventoryItem: (itemId: string, quantity: number) => void;
 }
 
-export const useGameStore = create<GameStore>((set) => ({
+export const useGameStore = create<GameStore>()((set) => ({
   player: null,
   farm: null,
   inventory: [],
-  token: localStorage.getItem('authToken'),
+  token: typeof localStorage !== 'undefined' ? localStorage.getItem('authToken') : null,
   isLoading: false,
   error: null,
 
   setToken: (token: string) => {
-    localStorage.setItem('authToken', token);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('authToken', token);
+    }
     set({ token });
   },
 
@@ -71,21 +73,23 @@ export const useGameStore = create<GameStore>((set) => ({
   setError: (error: string | null) => set({ error }),
 
   logout: () => {
-    localStorage.removeItem('authToken');
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('authToken');
+    }
     set({ player: null, farm: null, inventory: [], token: null });
   },
 
   updatePlayerStats: (stats: Partial<Player>) =>
-    set((state) => ({
+    set((state: GameStore) => ({
       player: state.player ? { ...state.player, ...stats } : null
     })),
 
   addInventoryItem: (itemId: string, quantity: number) =>
-    set((state) => {
-      const existing = state.inventory.find((i) => i.itemId === itemId);
+    set((state: GameStore) => {
+      const existing = state.inventory.find((i: InventoryItem) => i.itemId === itemId);
       if (existing) {
         return {
-          inventory: state.inventory.map((i) =>
+          inventory: state.inventory.map((i: InventoryItem) =>
             i.itemId === itemId ? { ...i, quantity: i.quantity + quantity } : i
           )
         };
@@ -96,12 +100,12 @@ export const useGameStore = create<GameStore>((set) => ({
     }),
 
   removeInventoryItem: (itemId: string, quantity: number) =>
-    set((state) => {
+    set((state: GameStore) => {
       const updated = state.inventory
-        .map((i) =>
+        .map((i: InventoryItem) =>
           i.itemId === itemId ? { ...i, quantity: i.quantity - quantity } : i
         )
-        .filter((i) => i.quantity > 0);
+        .filter((i: InventoryItem) => i.quantity > 0);
       return { inventory: updated };
     })
 }));

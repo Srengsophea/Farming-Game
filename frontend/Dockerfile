@@ -1,13 +1,14 @@
-FROM node:18-alpine
+FROM node:20-slim
+
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 COPY package*.json ./
 COPY frontend/package*.json ./frontend/
 COPY shared/package*.json ./shared/
-COPY tsconfig.json ./
 
-RUN npm install
+RUN npm install --include=optional
 
 COPY frontend/src ./frontend/src
 COPY frontend/public ./frontend/public
@@ -22,4 +23,4 @@ COPY shared/tsconfig.json ./shared/
 
 EXPOSE 5173
 
-CMD ["npm", "run", "dev:frontend"]
+CMD ["npm", "run", "dev:frontend", "--", "--host", "0.0.0.0"]
