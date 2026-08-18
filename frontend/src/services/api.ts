@@ -63,6 +63,8 @@ export const farmingApi = {
   getRecipes: () => client.get('/game/crafting/recipes'),
   craftItem: (recipeId: string) =>
     client.post('/game/crafting/craft', { recipeId }),
+  craft: (recipeId: string) =>
+    client.post('/game/crafting/craft', { recipeId }),
   fish: () => client.post('/game/fishing/fish'),
   getFish: () => client.get('/game/fishing/fish'),
   mine: () => client.post('/game/mining/mine'),

@@ -68,14 +68,20 @@ export class TradeService {
         throw new Error('Not enough coins');
       }
 
+      const newBuyerCoins = buyer.rows[0].coins - totalCost;
       await client.query(
-        'UPDATE players SET coins = coins - $1 WHERE id = $2',
-        [totalCost, buyerId]
+        'UPDATE players SET coins = $1 WHERE id = $2',
+        [newBuyerCoins, buyerId]
       );
 
+      const seller = await client.query(
+        'SELECT coins FROM players WHERE id = $1 FOR UPDATE',
+        [listingData.seller_id]
+      );
+      const newSellerCoins = (seller.rows[0]?.coins || 0) + totalCost;
       await client.query(
-        'UPDATE players SET coins = coins + $1 WHERE id = $2',
-        [totalCost, listingData.seller_id]
+        'UPDATE players SET coins = $1 WHERE id = $2',
+        [newSellerCoins, listingData.seller_id]
       );
 
       const existing = await client.query(

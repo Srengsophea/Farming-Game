@@ -69,9 +69,14 @@ export class CraftingService {
         );
       }
 
+      const player = await client.query(
+        'SELECT farm_xp FROM players WHERE id = $1 FOR UPDATE',
+        [playerId]
+      );
+      const newFarmXp = (player.rows[0]?.farm_xp || 0) + recipe.xpReward;
       await client.query(
-        'UPDATE players SET farm_xp = farm_xp + $1 WHERE id = $2',
-        [recipe.xpReward, playerId]
+        'UPDATE players SET farm_xp = $1 WHERE id = $2',
+        [newFarmXp, playerId]
       );
 
       await client.query('COMMIT');

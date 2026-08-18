@@ -31,9 +31,10 @@ export class MiningService {
         throw new Error('Not enough energy (need 15)');
       }
 
+      const newEnergy = player.rows[0].energy - 15;
       await client.query(
-        'UPDATE players SET energy = energy - 15 WHERE id = $1',
-        [playerId]
+        'UPDATE players SET energy = $1 WHERE id = $2',
+        [newEnergy, playerId]
       );
 
       const playerLevel = player.rows[0].level;
@@ -78,9 +79,10 @@ export class MiningService {
         );
       }
 
+      const newFarmXp = (player.rows[0].farm_xp || 0) + minedOre.xpReward;
       await client.query(
-        'UPDATE players SET farm_xp = farm_xp + $1 WHERE id = $2',
-        [minedOre.xpReward, playerId]
+        'UPDATE players SET farm_xp = $1 WHERE id = $2',
+        [newFarmXp, playerId]
       );
 
       await client.query('COMMIT');

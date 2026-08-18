@@ -29,9 +29,10 @@ export class FarmingService {
         throw new Error('Not enough coins');
       }
 
+      const newCoins = player.rows[0].coins - seedCost;
       await client.query(
-        'UPDATE players SET coins = coins - $1 WHERE id = $2',
-        [seedCost, playerId]
+        'UPDATE players SET coins = $1 WHERE id = $2',
+        [newCoins, playerId]
       );
 
       const cropId = uuidv4();
@@ -115,7 +116,16 @@ export class FarmingService {
         throw new Error('Crop not ready to harvest');
       }
 
-      await client.query('UPDATE players SET coins = coins + $1, farm_xp = farm_xp + $2 WHERE id = $3', [config.sellPrice, config.xpReward, playerId]);
+      const player = await client.query(
+        'SELECT coins, farm_xp FROM players WHERE id = $1 FOR UPDATE',
+        [playerId]
+      );
+      const newCoins = (player.rows[0]?.coins || 0) + config.sellPrice;
+      const newFarmXp = (player.rows[0]?.farm_xp || 0) + config.xpReward;
+      await client.query(
+        'UPDATE players SET coins = $1, farm_xp = $2 WHERE id = $3',
+        [newCoins, newFarmXp, playerId]
+      );
 
       await client.query('UPDATE farm_tiles SET tilled = false WHERE id = $1', [cropData.tile_id]);
 
@@ -308,9 +318,10 @@ export class FarmingService {
         throw new Error('Not enough coins');
       }
 
+      const newCoins = player.rows[0].coins - cost;
       await client.query(
-        'UPDATE players SET coins = coins - $1 WHERE id = $2',
-        [cost, playerId]
+        'UPDATE players SET coins = $1 WHERE id = $2',
+        [newCoins, playerId]
       );
 
       const animalId = uuidv4();

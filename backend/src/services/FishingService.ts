@@ -26,9 +26,10 @@ export class FishingService {
         throw new Error('Not enough energy (need 10)');
       }
 
+      const newEnergy = player.rows[0].energy - 10;
       await client.query(
-        'UPDATE players SET energy = energy - 10 WHERE id = $1',
-        [playerId]
+        'UPDATE players SET energy = $1 WHERE id = $2',
+        [newEnergy, playerId]
       );
 
       const rand = Math.random();
@@ -64,9 +65,14 @@ export class FishingService {
         );
       }
 
+      const playerAfter = await client.query(
+        'SELECT farm_xp FROM players WHERE id = $1 FOR UPDATE',
+        [playerId]
+      );
+      const newFarmXp = (playerAfter.rows[0]?.farm_xp || 0) + caughtFish.xpReward;
       await client.query(
-        'UPDATE players SET farm_xp = farm_xp + $1 WHERE id = $2',
-        [caughtFish.xpReward, playerId]
+        'UPDATE players SET farm_xp = $1 WHERE id = $2',
+        [newFarmXp, playerId]
       );
 
       await client.query('COMMIT');

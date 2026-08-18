@@ -1,149 +1,167 @@
 import React, { useEffect, useState } from 'react';
 import { farmingApi } from '../services/api';
 import { Navbar } from '../components/Navbar';
+import { ToastContainer, ToastData } from '../components/Toast';
+import { RewardModal, RewardModalData } from '../components/RewardModal';
 
 interface Recipe {
   id: string;
-  ingredients: Record<string, number>;
+  name: string;
+  category: string;
+  inputs: Record<string, number>;
   output: string;
   outputQuantity: number;
-  craftTimeMs: number;
   xpReward: number;
 }
 
-const RECIPE_ICONS: Record<string, string> = {
+const ITEM_ICONS: Record<string, string> = {
   bread: '🍞',
+  flour: '🥡',
   cheese: '🧀',
-  cake: '🍰'
+  butter: '🧈',
+  cake: '🎂',
+  egg: '🥚',
+  milk: '🥛',
+  wheat: '🌾',
+  corn: '🌽',
+  sugar: '🍬',
+  honey: '🍯'
 };
 
 export const CraftingPage: React.FC = () => {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
-  const [isCrafting, setIsCrafting] = useState(false);
-  const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [isCrafting, setIsCrafting] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<ToastData[]>([]);
+  const [rewardModal, setRewardModal] = useState<RewardModalData | null>(null);
 
   useEffect(() => {
     loadRecipes();
   }, []);
 
+  const addToast = (toast: Omit<ToastData, 'id'>) => {
+    const id = Date.now().toString() + Math.random().toString(36).substring(2, 6);
+    setToasts((prev) => [...prev.slice(-3), { ...toast, id }]);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
+
   const loadRecipes = async () => {
     try {
-      const response = await farmingApi.getRecipes();
-      setRecipes(response.data.recipes || []);
-    } catch (error) {
-      console.error('Error loading recipes:', error);
-    } finally {
-      setIsLoading(false);
+      const res = await farmingApi.getRecipes();
+      setRecipes(res.data.recipes || []);
+    } catch (err) {
+      console.error('Error loading recipes:', err);
     }
   };
 
-  const handleCraft = async (recipeId: string) => {
-    setIsCrafting(true);
+  const handleCraft = async (recipe: Recipe) => {
+    setIsCrafting(recipe.id);
     try {
-      await farmingApi.craftItem(recipeId);
-      setStatusMsg(`Successfully crafted ${recipeId}! ✨`);
-      setTimeout(() => setStatusMsg(null), 3000);
-      setSelectedRecipe(null);
-    } catch (error: any) {
-      setStatusMsg(error.response?.data?.error || 'Not enough ingredients in inventory');
-      setTimeout(() => setStatusMsg(null), 3000);
+      await farmingApi.craft(recipe.id);
+
+      setRewardModal({
+        title: 'Crafting Complete!',
+        subtitle: 'You processed your farm harvests into an artisan product!',
+        itemName: `${recipe.outputQuantity}x ${recipe.name}`,
+        icon: ITEM_ICONS[recipe.output] || '🧁',
+        xpEarned: recipe.xpReward,
+        rarity: 'Handcrafted'
+      });
+
+      addToast({
+        type: 'reward',
+        title: `Crafted ${recipe.name}!`,
+        message: `+${recipe.outputQuantity}x ${recipe.output} added to your Inventory`,
+        icon: ITEM_ICONS[recipe.output] || '🧁',
+        xp: recipe.xpReward
+      });
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'Crafting Failed',
+        message: err.response?.data?.error || 'Missing required ingredients in your Inventory!',
+        icon: '⚠️'
+      });
     } finally {
-      setIsCrafting(false);
+      setIsCrafting(null);
     }
   };
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col">
-        <Navbar />
-        <div className="p-8 text-center text-gray-500 font-semibold">Loading recipes...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <Navbar />
+      <ToastContainer toasts={toasts} onDismiss={removeToast} />
+      <RewardModal data={rewardModal} onClose={() => setRewardModal(null)} />
 
       <main className="max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-black text-gray-800 flex items-center gap-2">
-            <span>🔨</span> Artisan Crafting
-          </h1>
+          <div>
+            <h1 className="text-3xl font-black text-slate-800 flex items-center gap-2">
+              <span>🔨</span> Artisan Crafting Kitchen
+            </h1>
+            <p className="text-xs text-slate-500 font-semibold mt-1">
+              Transform your raw farm harvest into delicious baked goods and artisan products
+            </p>
+          </div>
         </div>
 
-        {statusMsg && (
-          <div className="bg-emerald-800 text-white px-5 py-3 rounded-xl shadow-md text-sm font-semibold animate-fade-in">
-            {statusMsg}
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
-            <h2 className="text-lg font-bold text-gray-800">Available Recipes</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {recipes.map((recipe) => (
-                <button
-                  key={recipe.id}
-                  onClick={() => setSelectedRecipe(recipe)}
-                  className={`border rounded-2xl p-5 text-left transition-all flex flex-col justify-between ${
-                    selectedRecipe?.id === recipe.id
-                      ? 'border-emerald-600 ring-2 ring-emerald-300 bg-emerald-50/50 shadow-sm'
-                      : 'border-gray-200 hover:border-emerald-300 hover:shadow-md bg-white'
-                  }`}
-                >
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {recipes.map((recipe) => (
+            <div
+              key={recipe.id}
+              className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between hover:shadow-md transition-all hover:scale-[1.01]"
+            >
+              <div>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-14 h-14 bg-gradient-to-tr from-amber-100 to-yellow-50 border border-amber-300 rounded-2xl flex items-center justify-center text-3xl shadow-sm">
+                    {ITEM_ICONS[recipe.output] || '📦'}
+                  </div>
                   <div>
-                    <div className="text-4xl mb-2">{RECIPE_ICONS[recipe.output] || '📦'}</div>
-                    <div className="font-extrabold text-base text-gray-800 capitalize">{recipe.output}</div>
-                    <div className="text-xs text-gray-500 mt-1">Reward: +{recipe.xpReward} Farm XP</div>
+                    <h3 className="font-black text-slate-900 text-lg">{recipe.name}</h3>
+                    <div className="text-[11px] font-black uppercase text-amber-700 tracking-wider">
+                      Yield: {recipe.outputQuantity}x {recipe.output}
+                    </div>
                   </div>
-
-                  <div className="mt-4 pt-3 border-t border-gray-100 text-xs font-semibold text-gray-600">
-                    Ingredients: {Object.entries(recipe.ingredients).map(([k, v]) => `${v}x ${k}`).join(', ')}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4 h-fit">
-            <h2 className="text-lg font-bold text-gray-800">Craft Item</h2>
-            {selectedRecipe ? (
-              <div className="space-y-4">
-                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl text-center">
-                  <div className="text-5xl mb-2">{RECIPE_ICONS[selectedRecipe.output] || '📦'}</div>
-                  <div className="font-black text-xl text-emerald-900 capitalize">{selectedRecipe.output}</div>
-                  <div className="text-xs text-emerald-700 font-semibold mt-1">Output: {selectedRecipe.outputQuantity}x item</div>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="text-xs font-bold text-gray-700 uppercase">Required Ingredients:</div>
-                  <div className="space-y-1">
-                    {Object.entries(selectedRecipe.ingredients).map(([item, qty]) => (
-                      <div key={item} className="flex justify-between text-xs bg-slate-50 p-2 rounded-lg font-semibold">
+                <div className="bg-slate-50 border border-slate-150 rounded-2xl p-3.5 mb-5 space-y-2">
+                  <div className="text-[11px] font-black text-slate-500 uppercase tracking-wider">
+                    Required Ingredients:
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(recipe.inputs).map(([item, qty]) => (
+                      <span
+                        key={item}
+                        className="bg-white border border-slate-200 text-slate-800 px-2.5 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xs"
+                      >
+                        <span>{ITEM_ICONS[item] || '🌱'}</span>
                         <span className="capitalize">{item}</span>
-                        <span className="text-emerald-700 font-bold">{qty}x</span>
-                      </div>
+                        <span className="text-emerald-700 font-black">×{qty}</span>
+                      </span>
                     ))}
                   </div>
                 </div>
+              </div>
+
+              <div className="space-y-3 pt-2">
+                <div className="flex justify-between text-xs font-black px-1">
+                  <span className="text-emerald-700">⭐ Reward: +{recipe.xpReward} XP</span>
+                  <span className="text-slate-400 capitalize">{recipe.category}</span>
+                </div>
 
                 <button
-                  onClick={() => handleCraft(selectedRecipe.id)}
-                  disabled={isCrafting}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-3 rounded-xl shadow transition"
+                  onClick={() => handleCraft(recipe)}
+                  disabled={isCrafting === recipe.id}
+                  className="w-full bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black py-3 px-4 rounded-2xl transition shadow-lg shadow-amber-600/20 text-xs uppercase tracking-wider flex items-center justify-center gap-2"
                 >
-                  {isCrafting ? 'Crafting in progress...' : `Craft ${selectedRecipe.output}`}
+                  <span>{isCrafting === recipe.id ? '⏳' : '🔨'}</span>
+                  <span>{isCrafting === recipe.id ? 'Crafting...' : 'Craft Recipe'}</span>
                 </button>
               </div>
-            ) : (
-              <div className="text-center py-12 text-gray-400 bg-gray-50 rounded-2xl border border-dashed border-gray-200 text-xs font-semibold">
-                Select a recipe from the list to start crafting
-              </div>
-            )}
-          </div>
+            </div>
+          ))}
         </div>
       </main>
     </div>
